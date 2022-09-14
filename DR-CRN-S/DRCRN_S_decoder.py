@@ -1,5 +1,4 @@
-# Original CRN: copyright of  (c) 2020, Ioana Bica
-# DR-CRN: copyright of  (c) 2022, Jiebin Chu
+# Copyright (c) 2020, Ioana Bica
 
 import logging
 import pickle
@@ -7,10 +6,10 @@ import numpy as np
 
 from utils.evaluation_utils import get_processed_data, get_mse_at_follow_up_time, \
     load_trained_model, write_results_to_file
-from DR_CRN_model import DR_CRN_Model
+from DR_CRN_S_model import DR_CRN_S_Model
 
 
-def fit_DRCRN_decoder(dataset_train, dataset_val, model_name, model_dir,
+def fit_DRCRN_S_decoder(dataset_train, dataset_val, model_name, model_dir,
                     encoder_hyperparams_file, decoder_hyperparams_file,
                     b_hyperparam_opt):
     logging.info("Fitting DR-CRN decoder.")
@@ -49,7 +48,7 @@ def fit_DRCRN_decoder(dataset_train, dataset_val, model_name, model_dir,
             hyperparams['rnn_keep_prob'] = np.random.choice([0.7, 0.8, 0.9])
 
             logging.info("Current hyperparams used for training \n {}".format(hyperparams))
-            model = DR_CRN_Model(params, hyperparams, b_train_decoder=True)
+            model = DR_CRN_S_Model(params, hyperparams, b_train_decoder=True)
             model.train(dataset_train, dataset_val, model_name, model_dir)
             validation_mse, _ = model.evaluate_predictions(dataset_val)
 
@@ -105,7 +104,7 @@ def fit_DRCRN_decoder(dataset_train, dataset_val, model_name, model_dir,
 
         write_results_to_file(decoder_hyperparams_file, best_hyperparams)
 
-    model = DR_CRN_Model(params, best_hyperparams, b_train_decoder=True)
+    model = DR_CRN_S_Model(params, best_hyperparams, b_train_decoder=True)
     model.train(dataset_train, dataset_val, model_name, model_dir)
 
 
@@ -126,7 +125,7 @@ def process_seq_data(data_map, states, projection_horizon):
     num_seq2seq_rows = num_patients * num_time_steps
 
     seq2seq_state_inits = np.zeros((num_seq2seq_rows, states[0].shape[-1]))
-    seq2seq_state_inits1 = np.zeros((num_seq2seq_rows, states[1].shape[-1]))
+    # seq2seq_state_inits1 = np.zeros((num_seq2seq_rows, states[1].shape[-1]))
     seq2seq_previous_treatments = np.zeros((num_seq2seq_rows, projection_horizon, previous_treatments.shape[-1]))
     seq2seq_current_treatments = np.zeros((num_seq2seq_rows, projection_horizon, current_treatments.shape[-1]))
     seq2seq_current_covariates = np.zeros((num_seq2seq_rows, projection_horizon, current_covariates.shape[-1]))
@@ -141,8 +140,8 @@ def process_seq_data(data_map, states, projection_horizon):
         sequence_length = int(sequence_lengths[i])
 
         for t in range(1, sequence_length):  # shift outputs back by 1
-            seq2seq_state_inits[total_seq2seq_rows, :] = states[0][i, t - 1, :]  # previous state output
-            seq2seq_state_inits1[total_seq2seq_rows, :] = states[1][i, t - 1, :]  # previous state output
+            seq2seq_state_inits[total_seq2seq_rows, :] = states[i, t - 1, :]  # previous state output
+            # seq2seq_state_inits1[total_seq2seq_rows, :] = states[1][i, t - 1, :]  # previous state output
 
             max_projection = min(projection_horizon, sequence_length - t)
 
@@ -160,7 +159,7 @@ def process_seq_data(data_map, states, projection_horizon):
 
     # Filter everything shorter
     seq2seq_state_inits = seq2seq_state_inits[:total_seq2seq_rows, :] # 556057,SIZE
-    seq2seq_state_inits1 = seq2seq_state_inits1[:total_seq2seq_rows, :]
+    # seq2seq_state_inits1 = seq2seq_state_inits1[:total_seq2seq_rows, :]
     seq2seq_previous_treatments = seq2seq_previous_treatments[:total_seq2seq_rows, :, :] #556057, 5, 4
     seq2seq_current_treatments = seq2seq_current_treatments[:total_seq2seq_rows, :, :]
     seq2seq_current_covariates = seq2seq_current_covariates[:total_seq2seq_rows, :, :] #556057, 5, 2
@@ -170,7 +169,8 @@ def process_seq_data(data_map, states, projection_horizon):
 
     # Package outputs
     seq2seq_data_map = {
-        'init_state': [seq2seq_state_inits,seq2seq_state_inits1],
+        # 'init_state': [seq2seq_state_inits,seq2seq_state_inits1],
+        'init_state': seq2seq_state_inits,
         'previous_treatments': seq2seq_previous_treatments,
         'current_treatments': seq2seq_current_treatments,
         'current_covariates': seq2seq_current_covariates,
@@ -207,8 +207,9 @@ def process_counterfactual_seq_test_data(test_data, data_map, states, projection
 
     for i in range(num_patient_points):
         seq_length = int(sequence_lengths[i])
-        seq2seq_state_inits[i] = states[0][i, seq_length - 1]
-        seq2seq_state_inits1[i] = states[1][i, seq_length - 1]
+        seq2seq_state_inits[i] = states[i, seq_length - 1]
+        # seq2seq_state_inits[i] = states[0][i, seq_length - 1]
+        # seq2seq_state_inits1[i] = states[1][i, seq_length - 1]
         seq2seq_active_entries[i] = np.ones(shape=(projection_horizon, 1))
         seq2seq_previous_treatments[i] = previous_treatments[i, seq_length - 1:seq_length + projection_horizon - 1, :]
         seq2seq_current_treatments[i] = current_treatments[i, seq_length:seq_length + projection_horizon, :]
@@ -218,7 +219,8 @@ def process_counterfactual_seq_test_data(test_data, data_map, states, projection
 
     # Package outputs
     seq2seq_data_map = {
-        'init_state': [seq2seq_state_inits,seq2seq_state_inits1],
+        'init_state': seq2seq_state_inits,
+        # 'init_state': [seq2seq_state_inits,seq2seq_state_inits1],
         'previous_treatments': seq2seq_previous_treatments,
         'current_treatments': seq2seq_current_treatments,
         'current_covariates': seq2seq_current_covariates,
@@ -236,7 +238,7 @@ def process_counterfactual_seq_test_data(test_data, data_map, states, projection
     return seq2seq_data_map
 
 
-def test_DRCRN_decoder(pickle_map, max_projection_horizon, projection_horizon, models_dir,
+def test_DRCRN_S_decoder(pickle_map, max_projection_horizon, projection_horizon, models_dir,
                      encoder_model_name, encoder_hyperparams_file,
                      decoder_model_name, decoder_hyperparams_file,
                      b_decoder_hyperparm_tuning):
@@ -247,15 +249,15 @@ def test_DRCRN_decoder(pickle_map, max_projection_horizon, projection_horizon, m
     validation_processed = get_processed_data(validation_data, scaling_data)
 
     encoder_model = load_trained_model(validation_processed, encoder_hyperparams_file, encoder_model_name, models_dir)
-    training_dr_states = encoder_model.get_disentangled_reps(training_processed)
+    training_dr_states = encoder_model.get_disentangled_reps(training_processed) # todo 需要获取两个state
     validation_dr_states = encoder_model.get_disentangled_reps(validation_processed)
 
-    training_seq_processed = process_seq_data(training_processed, training_dr_states, max_projection_horizon)
+    training_seq_processed = process_seq_data(training_processed, training_dr_states, max_projection_horizon)# todo 对应修改
     validation_seq_processed = process_seq_data(validation_processed, validation_dr_states, max_projection_horizon)
 
     # if b_decoder_hyperparm_tuning:
 
-    fit_DRCRN_decoder(dataset_train=training_seq_processed, dataset_val=validation_seq_processed,
+    fit_DRCRN_S_decoder(dataset_train=training_seq_processed, dataset_val=validation_seq_processed,
                     model_dir=models_dir,
                     model_name=decoder_model_name, encoder_hyperparams_file=encoder_hyperparams_file,
                     decoder_hyperparams_file=decoder_hyperparams_file, b_hyperparam_opt=b_decoder_hyperparm_tuning)
@@ -271,10 +273,10 @@ def test_DRCRN_decoder(pickle_map, max_projection_horizon, projection_horizon, m
 
     test_seq_processed = process_counterfactual_seq_test_data(test_data_seq_actions, test_processed, test_dr_states,
                                                               projection_horizon)
-    DRCRN_deocoder = load_trained_model(test_seq_processed, decoder_hyperparams_file, decoder_model_name, models_dir,
+    DRCRN_S_deocoder = load_trained_model(test_seq_processed, decoder_hyperparams_file, decoder_model_name, models_dir,
                                       b_decoder_model=True)
 
-    seq_predictions = DRCRN_deocoder.get_autoregressive_sequence_predictions(test_data_seq_actions, test_processed,
+    seq_predictions = DRCRN_S_deocoder.get_autoregressive_sequence_predictions(test_data_seq_actions, test_processed,
                                                                            test_dr_states, test_dr_outputs,
                                                                            projection_horizon)
     seq_predictions = seq_predictions * test_seq_processed['output_stds'] + test_seq_processed['output_means']

@@ -1,15 +1,14 @@
-# Original CRN: copyright of  (c) 2020, Ioana Bica
-# DR-CRN: copyright of  (c) 2022, Jiebin Chu
+# Copyright (c) 2020, Ioana Bica
 
 import logging
 import numpy as np
 
-from DR_CRN_model import DR_CRN_Model
+from DR_CRN_S_model import DR_CRN_S_Model
 from utils.evaluation_utils import write_results_to_file, load_trained_model, get_processed_data
 
 
 
-def fit_DRCRN_encoder(dataset_train, dataset_val, model_name, model_dir, hyperparams_file,
+def fit_DRCRN_S_encoder(dataset_train, dataset_val, model_name, model_dir, hyperparams_file,
                     b_hyperparam_opt):
     _, length, num_covariates = dataset_train['current_covariates'].shape
     num_treatments = dataset_train['current_treatments'].shape[-1]
@@ -39,7 +38,7 @@ def fit_DRCRN_encoder(dataset_train, dataset_val, model_name, model_dir, hyperpa
             hyperparams['rnn_keep_prob'] = np.random.choice([0.7, 0.8, 0.9])
 
             logging.info("Current hyperparams used for training \n {}".format(hyperparams))
-            model = DR_CRN_Model(params, hyperparams)
+            model = DR_CRN_S_Model(params, hyperparams)
             model.train(dataset_train, dataset_val, model_name, model_dir)
             validation_mse, _ = model.evaluate_predictions(dataset_val)
 
@@ -102,12 +101,12 @@ def fit_DRCRN_encoder(dataset_train, dataset_val, model_name, model_dir, hyperpa
         logging.info("Best hyperparams: \n {}".format(best_hyperparams))
         write_results_to_file(hyperparams_file, best_hyperparams) # todo 这个文件的保存有点问题，改一下保存方法
 
-    model = DR_CRN_Model(params, best_hyperparams)
+    model = DR_CRN_S_Model(params, best_hyperparams)
     model.train(dataset_train, dataset_val, model_name, model_dir)#这里暂时取消训练，直接载入已训练模型
 
 
 
-def DRCRN_encoder(pickle_map, models_dir,
+def DRCRN_S_encoder(pickle_map, models_dir,
                      encoder_model_name, encoder_hyperparams_file,
                      b_encoder_hyperparm_tuning):
 
@@ -122,7 +121,7 @@ def DRCRN_encoder(pickle_map, models_dir,
 
     # if b_encoder_hyperparm_tuning:
 
-    fit_DRCRN_encoder(dataset_train=training_processed, dataset_val=validation_processed,
+    fit_DRCRN_S_encoder(dataset_train=training_processed, dataset_val=validation_processed,
                     model_name=encoder_model_name, model_dir=models_dir,
                     hyperparams_file=encoder_hyperparams_file, b_hyperparam_opt=b_encoder_hyperparm_tuning)
     # else:

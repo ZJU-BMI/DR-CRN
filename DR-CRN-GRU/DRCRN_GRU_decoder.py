@@ -7,13 +7,13 @@ import numpy as np
 
 from utils.evaluation_utils import get_processed_data, get_mse_at_follow_up_time, \
     load_trained_model, write_results_to_file
-from DR_CRN_model import DR_CRN_Model
+from DR_CRN_GRU_model import DR_CRN_GRU_Model
 
 
-def fit_DRCRN_decoder(dataset_train, dataset_val, model_name, model_dir,
+def fit_DRCRN_GRU_decoder(dataset_train, dataset_val, model_name, model_dir,
                     encoder_hyperparams_file, decoder_hyperparams_file,
                     b_hyperparam_opt):
-    logging.info("Fitting DR-CRN decoder.")
+    logging.info("Fitting DR-CRN_GRU decoder.")
 
     _, length, num_covariates = dataset_train['current_covariates'].shape
     num_treatments = dataset_train['current_treatments'].shape[-1]
@@ -49,7 +49,7 @@ def fit_DRCRN_decoder(dataset_train, dataset_val, model_name, model_dir,
             hyperparams['rnn_keep_prob'] = np.random.choice([0.7, 0.8, 0.9])
 
             logging.info("Current hyperparams used for training \n {}".format(hyperparams))
-            model = DR_CRN_Model(params, hyperparams, b_train_decoder=True)
+            model = DR_CRN_GRU_Model(params, hyperparams, b_train_decoder=True)
             model.train(dataset_train, dataset_val, model_name, model_dir)
             validation_mse, _ = model.evaluate_predictions(dataset_val)
 
@@ -105,7 +105,7 @@ def fit_DRCRN_decoder(dataset_train, dataset_val, model_name, model_dir,
 
         write_results_to_file(decoder_hyperparams_file, best_hyperparams)
 
-    model = DR_CRN_Model(params, best_hyperparams, b_train_decoder=True)
+    model = DR_CRN_GRU_Model(params, best_hyperparams, b_train_decoder=True)
     model.train(dataset_train, dataset_val, model_name, model_dir)
 
 
@@ -236,7 +236,7 @@ def process_counterfactual_seq_test_data(test_data, data_map, states, projection
     return seq2seq_data_map
 
 
-def test_DRCRN_decoder(pickle_map, max_projection_horizon, projection_horizon, models_dir,
+def test_DRCRN_GRU_decoder(pickle_map, max_projection_horizon, projection_horizon, models_dir,
                      encoder_model_name, encoder_hyperparams_file,
                      decoder_model_name, decoder_hyperparams_file,
                      b_decoder_hyperparm_tuning):
@@ -250,12 +250,12 @@ def test_DRCRN_decoder(pickle_map, max_projection_horizon, projection_horizon, m
     training_dr_states = encoder_model.get_disentangled_reps(training_processed)
     validation_dr_states = encoder_model.get_disentangled_reps(validation_processed)
 
-    training_seq_processed = process_seq_data(training_processed, training_dr_states, max_projection_horizon)
+    training_seq_processed = process_seq_data(training_processed, training_dr_states, max_projection_horizon)# todo 对应修改
     validation_seq_processed = process_seq_data(validation_processed, validation_dr_states, max_projection_horizon)
 
     # if b_decoder_hyperparm_tuning:
 
-    fit_DRCRN_decoder(dataset_train=training_seq_processed, dataset_val=validation_seq_processed,
+    fit_DRCRN_GRU_decoder(dataset_train=training_seq_processed, dataset_val=validation_seq_processed,
                     model_dir=models_dir,
                     model_name=decoder_model_name, encoder_hyperparams_file=encoder_hyperparams_file,
                     decoder_hyperparams_file=decoder_hyperparams_file, b_hyperparam_opt=b_decoder_hyperparm_tuning)
@@ -271,10 +271,10 @@ def test_DRCRN_decoder(pickle_map, max_projection_horizon, projection_horizon, m
 
     test_seq_processed = process_counterfactual_seq_test_data(test_data_seq_actions, test_processed, test_dr_states,
                                                               projection_horizon)
-    DRCRN_deocoder = load_trained_model(test_seq_processed, decoder_hyperparams_file, decoder_model_name, models_dir,
+    DRCRN_GRU_deocoder = load_trained_model(test_seq_processed, decoder_hyperparams_file, decoder_model_name, models_dir,
                                       b_decoder_model=True)
 
-    seq_predictions = DRCRN_deocoder.get_autoregressive_sequence_predictions(test_data_seq_actions, test_processed,
+    seq_predictions = DRCRN_GRU_deocoder.get_autoregressive_sequence_predictions(test_data_seq_actions, test_processed,
                                                                            test_dr_states, test_dr_outputs,
                                                                            projection_horizon)
     seq_predictions = seq_predictions * test_seq_processed['output_stds'] + test_seq_processed['output_means']

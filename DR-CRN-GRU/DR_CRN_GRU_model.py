@@ -3,9 +3,8 @@
 
 
 import tensorflow as tf
-from tensorflow.contrib.rnn import LSTMCell, DropoutWrapper
+from tensorflow.contrib.rnn import GRUCell, DropoutWrapper
 from tensorflow.python.ops import rnn
-
 
 import numpy as np
 import os
@@ -13,7 +12,7 @@ import os
 import logging
 
 
-class DR_CRN_Model:
+class DR_CRN_GRU_Model:
     def __init__(self, params, hyperparams, b_train_decoder=False):
         self.num_treatments = params['num_treatments']
         self.num_covariates = params['num_covariates']
@@ -53,7 +52,7 @@ class DR_CRN_Model:
             self.rnn_input = tf.concat([self.current_covariates, self.previous_treatments], axis=-1)
             self.sequence_length = self.compute_sequence_length(self.rnn_input)
 
-            rnn_cell = DropoutWrapper(LSTMCell(self.rnn_hidden_units, state_is_tuple=False),
+            rnn_cell = DropoutWrapper(GRUCell(self.rnn_hidden_units),
                                       output_keep_prob=self.rnn_keep_prob,
                                       state_keep_prob=self.rnn_keep_prob,
                                       variational_recurrent=True,
@@ -62,11 +61,11 @@ class DR_CRN_Model:
             decoder_init_state = None
             if (self.b_train_decoder):
                 if var_scope == 'treatment-oriented':
-                    decoder_init_state = tf.concat([self.init_state, self.init_state], axis=-1)
-                    # decoder_init_state = self.init_state
+                    # decoder_init_state = tf.concat([self.init_state, self.init_state], axis=-1)
+                    decoder_init_state = self.init_state
                 else:
-                    decoder_init_state = tf.concat([self.init_state1, self.init_state1], axis=-1)
-                    # decoder_init_state = self.init_state1
+                    # decoder_init_state = tf.concat([self.init_state1, self.init_state1], axis=-1)
+                    decoder_init_state = self.init_state1
 
             rnn_output, _ = rnn.dynamic_rnn(
                 rnn_cell,
@@ -154,7 +153,7 @@ class DR_CRN_Model:
 
         # self.loss_orth = self.cal_orth(self.state,self.state1)
         # self.loss = self.loss_outcomes + self.loss_treatments+self.loss_orth
-        self.loss = self.loss_outcomes + self.loss_treatments + self.loss_mi
+        self.loss = self.loss_outcomes + 1 * self.loss_treatments + 1 * self.loss_mi
         # self.loss = self.loss_outcomes + self.loss_treatments
 
         optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)

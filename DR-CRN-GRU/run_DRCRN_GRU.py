@@ -5,8 +5,8 @@ import os
 import argparse
 import logging
 
-from DRCRN_encoder import DRCRN_encoder
-from DRCRN_decoder import test_DRCRN_decoder
+from DRCRN_GRU_encoder import DRCRN_GRU_encoder
+from DRCRN_GRU_decoder import test_DRCRN_GRU_decoder
 from utils.cancer_simulation import get_cancer_sim_data
 
 
@@ -41,11 +41,11 @@ if __name__ == '__main__':
     encoder_model_name = 'encoder_' + args.model_name
     encoder_hyperparams_file = '{}/{}_best_hyperparams.txt'.format(args.results_dir, encoder_model_name)
 
-    models_dir = '{}/DRCRN_models'.format(args.results_dir)
+    models_dir = '{}/DRCRN_GRU_models'.format(args.results_dir)
     if not os.path.exists(models_dir):
         os.mkdir(models_dir)
 
-    rmse_encoder = DRCRN_encoder(pickle_map=pickle_map, models_dir=models_dir,
+    rmse_encoder = DRCRN_GRU_encoder(pickle_map=pickle_map, models_dir=models_dir,
                                     encoder_model_name=encoder_model_name,
                                     encoder_hyperparams_file=encoder_hyperparams_file,
                                     b_encoder_hyperparm_tuning=args.b_encoder_hyperparm_tuning)
@@ -62,7 +62,7 @@ if __name__ == '__main__':
     max_projection_horizon = 5
     projection_horizon = 5
 
-    rmse_decoder = test_DRCRN_decoder(pickle_map=pickle_map, max_projection_horizon=max_projection_horizon,
+    rmse_decoder = test_DRCRN_GRU_decoder(pickle_map=pickle_map, max_projection_horizon=max_projection_horizon,
                                     projection_horizon=projection_horizon,
                                     models_dir=models_dir,
                                     encoder_model_name=encoder_model_name,

@@ -1,12 +1,11 @@
-# Original CRN: copyright of  (c) 2020, Ioana Bica
-# DR-CRN: copyright of  (c) 2022, Jiebin Chu
+# Copyright (c) 2020, Ioana Bica
 
 import os
 import argparse
 import logging
 
-from DRCRN_encoder import DRCRN_encoder
-from DRCRN_decoder import test_DRCRN_decoder
+from DRCRN_S_encoder import DRCRN_S_encoder
+from DRCRN_S_decoder import test_DRCRN_S_decoder
 from utils.cancer_simulation import get_cancer_sim_data
 
 
@@ -41,14 +40,14 @@ if __name__ == '__main__':
     encoder_model_name = 'encoder_' + args.model_name
     encoder_hyperparams_file = '{}/{}_best_hyperparams.txt'.format(args.results_dir, encoder_model_name)
 
-    models_dir = '{}/DRCRN_models'.format(args.results_dir)
+    models_dir = '{}/DRCRN_S_models'.format(args.results_dir)
     if not os.path.exists(models_dir):
         os.mkdir(models_dir)
 
-    rmse_encoder = DRCRN_encoder(pickle_map=pickle_map, models_dir=models_dir,
-                                    encoder_model_name=encoder_model_name,
-                                    encoder_hyperparams_file=encoder_hyperparams_file,
-                                    b_encoder_hyperparm_tuning=args.b_encoder_hyperparm_tuning)
+    rmse_encoder = DRCRN_S_encoder(pickle_map=pickle_map, models_dir=models_dir,
+                                   encoder_model_name=encoder_model_name,
+                                   encoder_hyperparams_file=encoder_hyperparams_file,
+                                   b_encoder_hyperparm_tuning=args.b_encoder_hyperparm_tuning)
 
     decoder_model_name = 'decoder_' + args.model_name
     decoder_hyperparams_file = '{}/{}_best_hyperparams.txt'.format(args.results_dir, decoder_model_name)
@@ -62,14 +61,14 @@ if __name__ == '__main__':
     max_projection_horizon = 5
     projection_horizon = 5
 
-    rmse_decoder = test_DRCRN_decoder(pickle_map=pickle_map, max_projection_horizon=max_projection_horizon,
-                                    projection_horizon=projection_horizon,
-                                    models_dir=models_dir,
-                                    encoder_model_name=encoder_model_name,
-                                    encoder_hyperparams_file=encoder_hyperparams_file,
-                                    decoder_model_name=decoder_model_name,
-                                    decoder_hyperparams_file=decoder_hyperparams_file,
-                                    b_decoder_hyperparm_tuning=args.b_decoder_hyperparm_tuning)
+    rmse_decoder = test_DRCRN_S_decoder(pickle_map=pickle_map, max_projection_horizon=max_projection_horizon,
+                                        projection_horizon=projection_horizon,
+                                        models_dir=models_dir,
+                                        encoder_model_name=encoder_model_name,
+                                        encoder_hyperparams_file=encoder_hyperparams_file,
+                                        decoder_model_name=decoder_model_name,
+                                        decoder_hyperparams_file=decoder_hyperparams_file,
+                                        b_decoder_hyperparm_tuning=args.b_decoder_hyperparm_tuning)
 
     logging.info("Chemo coeff {} | Radio coeff {}".format(args.chemo_coeff, args.radio_coeff))
     print("RMSE for one-step-ahead prediction.")

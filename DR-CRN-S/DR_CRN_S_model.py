@@ -6,14 +6,13 @@ import tensorflow as tf
 from tensorflow.contrib.rnn import LSTMCell, DropoutWrapper
 from tensorflow.python.ops import rnn
 
-
 import numpy as np
 import os
 
 import logging
 
 
-class DR_CRN_Model:
+class DR_CRN_S_Model:
     def __init__(self, params, hyperparams, b_train_decoder=False):
         self.num_treatments = params['num_treatments']
         self.num_covariates = params['num_covariates']
@@ -41,17 +40,17 @@ class DR_CRN_Model:
         self.active_entries = tf.placeholder(tf.float32, [None, self.max_sequence_length, self.num_outputs])
 
         self.init_state = None
-        self.init_state1 = None
+        # self.init_state1 = None
         if (self.b_train_decoder):
             self.init_state = tf.placeholder(tf.float32, [None, self.rnn_hidden_units])
-            self.init_state1 = tf.placeholder(tf.float32, [None, self.rnn_hidden_units])
+            # self.init_state1 = tf.placeholder(tf.float32, [None, self.rnn_hidden_units])
 
         self.alpha = tf.placeholder(tf.float32, [])  # Gradient reversal scalar
 
     def build_disentangled_representation(self, var_scope):
         with tf.variable_scope(var_scope):
             self.rnn_input = tf.concat([self.current_covariates, self.previous_treatments], axis=-1)
-            self.sequence_length = self.compute_sequence_length(self.rnn_input)
+            self.sequence_length = self.compute_sequence_length(self.rnn_input)  # 搞个active_entries不用干啥呢
 
             rnn_cell = DropoutWrapper(LSTMCell(self.rnn_hidden_units, state_is_tuple=False),
                                       output_keep_prob=self.rnn_keep_prob,
@@ -65,8 +64,9 @@ class DR_CRN_Model:
                     decoder_init_state = tf.concat([self.init_state, self.init_state], axis=-1)
                     # decoder_init_state = self.init_state
                 else:
-                    decoder_init_state = tf.concat([self.init_state1, self.init_state1], axis=-1)
+                    # decoder_init_state = tf.concat([self.init_state1, self.init_state1], axis=-1)
                     # decoder_init_state = self.init_state1
+                    pass
 
             rnn_output, _ = rnn.dynamic_rnn(
                 rnn_cell,
@@ -78,7 +78,8 @@ class DR_CRN_Model:
             # Flatten to apply same weights to all time steps.
             rnn_output = tf.reshape(rnn_output, [-1, self.rnn_hidden_units])
             disentangled_representation = tf.layers.dense(rnn_output, self.dr_size, activation=tf.nn.elu)
-            return rnn_output, disentangled_representation
+            disentangled_representation1 = tf.layers.dense(rnn_output, self.dr_size, activation=tf.nn.elu)
+            return rnn_output, disentangled_representation, disentangled_representation1
 
     def build_treatment_assignments_one_hot(self, disentangled_representation):
         treatments_network_layer = tf.layers.dense(disentangled_representation, self.fc_hidden_units,
@@ -91,8 +92,7 @@ class DR_CRN_Model:
     def build_outcomes(self, disentangled_representation, ):
         current_treatments_reshape = tf.reshape(self.current_treatments, [-1, self.num_treatments])
 
-        outcome_network_input = tf.concat([disentangled_representation, current_treatments_reshape],
-                                          axis=-1)
+        outcome_network_input = tf.concat([disentangled_representation, current_treatments_reshape], axis=-1)
         outcome_network_layer = tf.layers.dense(outcome_network_input, self.fc_hidden_units,
                                                 activation=tf.nn.elu)
         outcome_predictions = tf.layers.dense(outcome_network_layer, self.num_outputs, activation=None)
@@ -138,8 +138,9 @@ class DR_CRN_Model:
         self.loss_mi = upper_bound / 2
 
     def train(self, dataset_train, dataset_val, model_name, model_folder):
-        self.state, self.disentangled_representation = self.build_disentangled_representation("treatment-oriented")
-        self.state1, self.disentangled_representation1 = self.build_disentangled_representation("outcome-oriented")
+        self.state, self.disentangled_representation, self.disentangled_representation1 = self.build_disentangled_representation(
+            "treatment-oriented")
+        # self.state1, self.disentangled_representation1 = self.build_disentangled_representation("outcome-oriented")
         self.treatment_prob_predictions = self.build_treatment_assignments_one_hot(self.disentangled_representation)
         self.predictions = self.build_outcomes(self.disentangled_representation1)
 
@@ -149,12 +150,12 @@ class DR_CRN_Model:
         self.loss_outcomes = self.compute_loss_predictions(self.outputs, self.predictions, self.active_entries)
 
         # TODO ablation study
-        self.cal_loss_loglikeli(self.state, self.state1)
-        self.cal_loss_mi(self.state, self.state1)
+        self.cal_loss_loglikeli(self.disentangled_representation, self.disentangled_representation1)
+        self.cal_loss_mi(self.disentangled_representation, self.disentangled_representation1)
 
         # self.loss_orth = self.cal_orth(self.state,self.state1)
         # self.loss = self.loss_outcomes + self.loss_treatments+self.loss_orth
-        self.loss = self.loss_outcomes + self.loss_treatments + self.loss_mi
+        self.loss = self.loss_outcomes + 1 * self.loss_treatments + 1 * self.loss_mi
         # self.loss = self.loss_outcomes + self.loss_treatments
 
         optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
@@ -213,8 +214,9 @@ class DR_CRN_Model:
         self.save_network(self.sess, model_folder, checkpoint_name)
 
     def load_model(self, model_name, model_folder):
-        self.state, self.disentangled_representation = self.build_disentangled_representation("treatment-oriented")
-        self.state1, self.disentangled_representation1 = self.build_disentangled_representation("outcome-oriented")
+        self.state, self.disentangled_representation, self.disentangled_representation1 = self.build_disentangled_representation(
+            "treatment-oriented")
+        # self.state1, self.disentangled_representation1 = self.build_disentangled_representation("outcome-oriented")
         self.treatment_prob_predictions = self.build_treatment_assignments_one_hot(self.disentangled_representation)
         self.predictions = self.build_outcomes(self.disentangled_representation1)
 
@@ -243,8 +245,8 @@ class DR_CRN_Model:
                 feed_dict = {self.current_covariates: batch_current_covariates,
                              self.previous_treatments: batch_previous_treatments,
                              self.current_treatments: batch_current_treatments,
-                             self.init_state: batch_init_state[0],
-                             self.init_state1: batch_init_state[1],
+                             self.init_state: batch_init_state,
+                             # self.init_state1: batch_init_state[1],
                              self.outputs: batch_outputs,
                              self.active_entries: batch_active_entries,
                              self.alpha: alpha_current}
@@ -261,8 +263,8 @@ class DR_CRN_Model:
                 feed_dict = {self.current_covariates: batch_current_covariates,
                              self.previous_treatments: batch_previous_treatments,
                              self.current_treatments: batch_current_treatments,
-                             self.init_state: batch_init_state[0],
-                             self.init_state1: batch_init_state[1],
+                             self.init_state: batch_init_state,
+                             # self.init_state1: batch_init_state[1],
                              self.alpha: alpha_current}
             else:
                 feed_dict = {self.current_covariates: batch_current_covariates,
@@ -291,8 +293,7 @@ class DR_CRN_Model:
 
                 batch_init_state = None
                 if self.b_train_decoder:
-                    batch_init_state = [dataset['init_state'][0][batch_samples, :],
-                                        dataset['init_state'][1][batch_samples, :]]
+                    batch_init_state = dataset['init_state'][batch_samples, :]
 
                 yield (batch_current_covariates, batch_previous_treatments, batch_current_treatments, batch_init_state,
                        batch_outputs, batch_active_entries)
@@ -304,8 +305,7 @@ class DR_CRN_Model:
                 batch_init_state = None
                 if self.b_train_decoder:
                     # batch_init_state = dataset['init_state'][batch_samples, :]
-                    batch_init_state = [dataset['init_state'][0][batch_samples, :],
-                                        dataset['init_state'][1][batch_samples, :]]
+                    batch_init_state = dataset['init_state'][batch_samples, :]
 
                 yield (batch_current_covariates, batch_previous_treatments, batch_current_treatments, batch_init_state)
 
@@ -346,8 +346,8 @@ class DR_CRN_Model:
         dataset_size = dataset['current_covariates'].shape[0]
         disentangled_reps = np.zeros(
             shape=(dataset_size, self.max_sequence_length, self.rnn_hidden_units))
-        disentangled_reps1 = np.zeros(
-            shape=(dataset_size, self.max_sequence_length, self.rnn_hidden_units))
+        # disentangled_reps1 = np.zeros(
+        #     shape=(dataset_size, self.max_sequence_length, self.rnn_hidden_units))
 
         dataset_size = dataset['current_covariates'].shape[0]
         if (dataset_size > 10000):  # Does not fit into memory
@@ -368,20 +368,29 @@ class DR_CRN_Model:
             # Dropout samples
             total_predictions = np.zeros(
                 shape=(batch_size, self.max_sequence_length, self.rnn_hidden_units))
-            total_predictions1 = np.zeros(
-                shape=(batch_size, self.max_sequence_length, self.rnn_hidden_units))
+            total_dr_reps = np.zeros(
+                shape=(batch_size, self.max_sequence_length, self.dr_size))
+            total_dr_reps1 = np.zeros(
+                shape=(batch_size, self.max_sequence_length, self.dr_size))
 
             for sample in range(num_samples):
-                dr_outputs, dr_outputs1 = self.sess.run([self.state, self.state1], feed_dict=feed_dict)
-                dr_outputs = np.reshape(dr_outputs,
-                                        newshape=(-1, self.max_sequence_length, self.rnn_hidden_units))
-                dr_outputs1 = np.reshape(dr_outputs1,
+                dr_reps, dr_reps1 = self.sess.run([self.disentangled_representation, self.disentangled_representation1],
+                                                  feed_dict=feed_dict)
+                dr_outputs = self.sess.run(self.state, feed_dict=feed_dict)
+                dr_outputs1 = np.reshape(dr_outputs,
                                          newshape=(-1, self.max_sequence_length, self.rnn_hidden_units))
+                dr_reps = np.reshape(dr_reps,
+                                     newshape=(-1, self.max_sequence_length, self.dr_size))
+                dr_reps1 = np.reshape(dr_reps1,
+                                      newshape=(-1, self.max_sequence_length, self.dr_size))
                 total_predictions += dr_outputs
-                total_predictions1 += dr_outputs1
+                total_dr_reps += dr_reps
+                total_dr_reps1 += dr_reps1
+                # total_predictions1 += dr_outputs1
 
             total_predictions /= num_samples
-            total_predictions1 /= num_samples
+            total_dr_reps /= num_samples
+            total_dr_reps1 /= num_samples
 
             if (batch_id == num_batches - 1):
                 batch_samples = range(dataset_size - batch_size, dataset_size)
@@ -390,9 +399,10 @@ class DR_CRN_Model:
 
             batch_id += 1
             disentangled_reps[batch_samples] = total_predictions
-            disentangled_reps1[batch_samples] = total_predictions1
+            # disentangled_reps1[batch_samples] = total_predictions1
 
-        return [disentangled_reps, disentangled_reps1]
+        # return [disentangled_reps, disentangled_reps1]
+        return disentangled_reps
 
     def get_predictions(self, dataset):
         logging.info("Performing one-step-ahead prediction.")
@@ -421,7 +431,7 @@ class DR_CRN_Model:
             total_predictions = np.zeros(
                 shape=(batch_size, self.max_sequence_length, self.num_outputs))
 
-            for sample in range(num_samples):
+            for sample in range(num_samples):  # 这在干什么？
                 predicted_outputs = self.sess.run(self.predictions, feed_dict=feed_dict)
                 predicted_outputs = np.reshape(predicted_outputs,
                                                newshape=(-1, self.max_sequence_length, self.num_outputs))
@@ -455,16 +465,14 @@ class DR_CRN_Model:
                                                                  test_data['previous_treatments'].shape[-1]))
         current_dataset['current_treatments'] = np.zeros(shape=(num_patient_points, projection_horizon,
                                                                 test_data['current_treatments'].shape[-1]))
-        current_dataset['init_state'] = [np.zeros((num_patient_points, encoder_states[0].shape[-1])),
-                                         np.zeros((num_patient_points, encoder_states[1].shape[-1]))]
-
+        current_dataset['init_state'] = np.zeros((num_patient_points, encoder_states.shape[-1]))
         predicted_outputs = np.zeros(shape=(num_patient_points, projection_horizon,
                                             test_data['outputs'].shape[-1]))
 
         for i in range(num_patient_points):
             seq_length = int(sequence_lengths[i])
-            current_dataset['init_state'][0][i] = encoder_states[0][i, seq_length - 1]
-            current_dataset['init_state'][1][i] = encoder_states[1][i, seq_length - 1]
+            current_dataset['init_state'][i] = encoder_states[i, seq_length - 1]
+            # current_dataset['init_state'][1][i] = encoder_states[1][i, seq_length - 1]
             current_dataset['current_covariates'][i, 0, 0] = encoder_outputs[i, seq_length - 1]
             current_dataset['previous_treatments'][i] = previous_treatments[i,
                                                         seq_length - 1:seq_length + projection_horizon - 1, :]
